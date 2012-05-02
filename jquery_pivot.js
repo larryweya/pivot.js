@@ -3,12 +3,14 @@
 
 var element,
     callbacks = {},
-    resultsTitle;
+    resultsTitle,
+    enableOrderChecked = true;
 
 var methods = {
   setup   : function(options){
     element = this; // set element for build_containers()
     if (options.callbacks) callbacks = options.callbacks;
+    if(!options.enableOrderChecked) enableOrderChecked = false;
 
     if (options.url !== undefined)
       methods.process_from_url(options);
@@ -215,6 +217,10 @@ var methods = {
 
   build_toggle_fields : function(div, fields, klass){
     $(div).empty();
+    $(div).prepend('<label class="checkbox">' +
+      '<input type="checkbox" class="' + klass + '-none" ' +
+      'data-field="" ' +
+      '><strong>NONE</strong></label>');
     $.each(fields, function(index, field){
       $(div).append('<label class="checkbox">' +
                     '<input type="checkbox" class="' + klass + '" ' +
@@ -231,19 +237,58 @@ var methods = {
     else
       displayFields = pivot.display().summaries().get
 
+    var hasFields = false; // check if we have any fields, if not check None by default
     for (var fieldName in displayFields) {
       var elem = $(div + ' input[data-field="' + fieldName +'"]');
       elem.prop("checked", true);
-      methods.orderChecked(div, elem);
+      if(enableOrderChecked)
+        methods.orderChecked(div, elem);
+      hasFields = true;
     };
+
+    if(!hasFields)
+        $(div + ' input.' + klass + '-none').attr("checked", true);
+
 
     // order listener
     $(div + ' input').on("click", function(){
       if (this.checked) {
-        methods.orderChecked(div, this);
+          // check if this is the NONE checkbox
+          if($(this).attr("data-field") == "")
+          {
+              $(div + ' input.' + klass).attr("checked", false);
+              var type = ""
+              if (klass === 'row-labelable')
+                  type = 'row';
+              else if (klass === 'column-labelable')
+                  type = 'column';
+              else
+                type = 'summaries';
+
+              if(type == "row" || type == "column")
+                methods.update_label_fields(type);
+              else
+                methods.update_summary_fields();
+          }
+          else
+          {
+              if(enableOrderChecked)
+                methods.orderChecked(div, this);
+          }
+
       } else {
-        var field = $(this).parent().detach()[0];
-        $(div).append( field );
+          if($(this).attr("data-field") == "")
+          {
+              $(this).attr("checked", true); //reset to checked, only checking one of the other unchecks this
+          }
+          else
+          {
+              if(enableOrderChecked)
+              {
+                  var field = $(this).parent().detach()[0];
+                  $(div).append( field );
+              }
+          }
       };
     });
   },
@@ -254,11 +299,11 @@ var methods = {
 
     //subtract 1 because clicked field is already checked insert plucked item into div at index
     if ((last_checked.length-1) === 0)
-      $(parent).prepend( field );
+        $(children[1]).before( field );// add right after None
     else if (children.length < last_checked.length)
-      $(parent).append( field );
+        $(children[(last_checked.length+1)]).before( field );
     else
-      $(children[last_checked.length-1]).before( field );
+      $(children[last_checked.length-1]).after( field );
   },
   update_result_details : function(){
     var snip = '';
@@ -357,6 +402,12 @@ var methods = {
         display_fields.push($(this).attr('data-field'));
     });
 
+    // if we don't have display fields, check the None checkbox
+    if(display_fields.length == 0)
+        $('.' + type + '-labelable-none').attr("checked", true)
+    else
+        $('.' + type + '-labelable-none').attr("checked", false)
+
     pivot.display()[type + 'Labels']().set(display_fields);
 
     methods.update_results();
@@ -367,6 +418,11 @@ var methods = {
     $('.summary:checked').each(function(index){
         summary_fields.push($(this).attr('data-field'));
     });
+    
+    if(summary_fields.length == 0)
+        $('.summary-none').attr("checked", true)
+    else
+        $('.summary-none').attr("checked", false)
 
     pivot.display().summaries().set(summary_fields);
 
